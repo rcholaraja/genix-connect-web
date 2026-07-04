@@ -44,7 +44,7 @@ export default function LeaveRequestsPage() {
     const { req, status } = confirmAction;
     setConfirmAction(null);
     try {
-      await updateLeaveStatus(req.id, status);
+      await updateLeaveStatus(req.id, status, '', req.studentId);
       toast(`Leave request ${status === LEAVE_STATUS.APPROVED ? 'approved' : 'rejected'} for ${req.studentName}`, 'success');
       setLoading(true);
       setRequests([]);

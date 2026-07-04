@@ -24,14 +24,30 @@ export default function StudentLeavePage() {
     finally { setLoading(false); }
   };
 
+  const [error, setError] = useState('');
+
   const handleSubmit = async () => {
-    if (!form.fromDate || !form.toDate || !form.reason.trim()) { alert('Please fill all fields.'); return; }
-    if (form.toDate < form.fromDate) { alert('End date must be on or after start date.'); return; }
+    setError('');
+    if (!form.fromDate || !form.toDate || !form.reason.trim()) { setError('Please fill all fields.'); return; }
+    if (form.toDate < form.fromDate) { setError('End date must be on or after start date.'); return; }
+
+    // Check for overlapping existing requests
+    const overlap = leaves.find((r: any) => {
+      if (r.status === LEAVE_STATUS.REJECTED) return false;
+      return r.fromDate <= form.toDate && r.toDate >= form.fromDate;
+    });
+    if (overlap) {
+      setError(overlap.status === LEAVE_STATUS.APPROVED
+        ? 'An approved leave already exists covering this date range.'
+        : 'A pending leave request already exists covering this date range.');
+      return;
+    }
+
     setSaving(true);
     try {
       await submitLeaveRequest((userProfile as any).id, userProfile?.name ?? '', form.fromDate, form.toDate, form.reason);
       setShowForm(false); setForm({ fromDate: today, toDate: today, reason: '' }); load();
-    } catch (e) { alert('Failed to submit leave request.'); }
+    } catch (e) { setError('Failed to submit leave request.'); }
     finally { setSaving(false); }
   };
 
@@ -52,6 +68,7 @@ export default function StudentLeavePage() {
             <div><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">To Date</label><input type="date" value={form.toDate} min={form.fromDate} onChange={e => setForm(f => ({ ...f, toDate: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF]" /></div>
           </div>
           <div className="mb-4"><label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Reason</label><textarea value={form.reason} onChange={e => setForm(f => ({ ...f, reason: e.target.value }))} placeholder="Reason for leave..." rows={3} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#6C63FF] resize-none" /></div>
+          {error && <p className="text-red-500 text-sm mb-3 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{error}</p>}
           <button onClick={handleSubmit} disabled={saving} className="w-full text-white py-2.5 rounded-lg font-medium disabled:opacity-60 transition-opacity" style={{ background: 'linear-gradient(135deg, #8B5CF6 0%, #6C63FF 50%, #4F46E5 100%)' }}>{saving ? 'Submitting...' : 'Submit Request'}</button>
         </div>
       )}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { BarChart3, BellRing, Wallet } from 'lucide-react';
@@ -15,8 +15,23 @@ export default function LoginPage() {
   const [role, setRole] = useState<'teacher' | 'student'>('teacher');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [resendTimer, setResendTimer] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { sendOtp, verifyOtp, user, userRole } = useAuth();
   const router = useRouter();
+
+  const startResendTimer = () => {
+    setResendTimer(30);
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setResendTimer(t => {
+        if (t <= 1) { clearInterval(timerRef.current!); return 0; }
+        return t - 1;
+      });
+    }, 1000);
+  };
+
+  useEffect(() => () => { if (timerRef.current) clearInterval(timerRef.current); }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -35,6 +50,7 @@ export default function LoginPage() {
     try {
       await sendOtp(`+91${phone.trim()}`);
       setStep('otp');
+      startResendTimer();
     } catch (e: any) {
       if (e.message?.includes('too-many-requests')) {
         setError('Too many attempts. Please wait a few minutes and try again.');
@@ -192,12 +208,32 @@ export default function LoginPage() {
               >
                 {loading ? 'Verifying...' : 'Verify OTP'}
               </button>
-              <button
-                onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
-                className="w-full text-[#6C63FF] text-sm font-medium hover:underline"
-              >
-                ← Change number
-              </button>
+              <div className="flex items-center justify-between">
+                <button
+                  onClick={() => { setStep('phone'); setOtp(''); setError(''); }}
+                  className="text-[#6C63FF] text-sm font-medium hover:underline"
+                >
+                  ← Change number
+                </button>
+                <button
+                  disabled={resendTimer > 0 || loading}
+                  onClick={async () => {
+                    setError('');
+                    setLoading(true);
+                    try {
+                      await sendOtp(`+91${phone.trim()}`);
+                      setOtp('');
+                      startResendTimer();
+                    } catch (e: any) {
+                      setError(e.message?.includes('too-many-requests') ? 'Too many attempts. Wait a few minutes.' : 'Failed to resend OTP.');
+                    } finally { setLoading(false); }
+                  }}
+                  className="text-sm font-medium disabled:opacity-40 transition-opacity"
+                  style={{ color: resendTimer > 0 ? '#9CA3AF' : '#6C63FF' }}
+                >
+                  {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+                </button>
+              </div>
             </div>
           )}
 

@@ -1,25 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, PartyPopper, FlaskConical, BookOpen, Star, CalendarDays, Cake } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Trash2, PartyPopper, FlaskConical, BookOpen, Star, CalendarDays } from 'lucide-react';
 import dayjs from 'dayjs';
 import { getCalendarEvents, addCalendarEvent, deleteCalendarEvent } from '@/services/calendar';
-import { getStudents } from '@/services/students';
 import { useToast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 const EVENT_TYPES = ['holiday', 'test', 'class', 'special'];
-const EVENT_COLORS: Record<string, string> = { class: '#6C63FF', holiday: '#F44336', test: '#FFC107', special: '#2196F3', birthday: '#EC4899' };
-const EVENT_ICONS: Record<string, any> = { holiday: PartyPopper, test: FlaskConical, class: BookOpen, special: Star, birthday: Cake };
+const EVENT_COLORS: Record<string, string> = { class: '#6C63FF', holiday: '#F44336', test: '#FFC107', special: '#2196F3' };
+const EVENT_ICONS: Record<string, any> = { holiday: PartyPopper, test: FlaskConical, class: BookOpen, special: Star };
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 
 export default function CalendarPage() {
   const { toast } = useToast();
   const [currentMonth, setCurrentMonth] = useState(dayjs());
   const [events, setEvents] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [showForm, setShowForm] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -28,17 +24,8 @@ export default function CalendarPage() {
   useEffect(() => { load(); }, [currentMonth]);
 
   const load = async () => {
-    setLoading(true);
-    try {
-      const [evts, studs] = await Promise.all([
-        getCalendarEvents(currentMonth.year(), currentMonth.month() + 1),
-        getStudents(),
-      ]);
-      setEvents(evts);
-      setStudents(studs);
-    }
+    try { setEvents(await getCalendarEvents(currentMonth.year(), currentMonth.month() + 1)); }
     catch (e) { console.error(e); }
-    finally { setLoading(false); }
   };
 
   const handleAdd = async () => {
@@ -61,8 +48,6 @@ export default function CalendarPage() {
     catch (e) { toast('Failed to add event.', 'error'); }
   };
 
-  const handleDelete = (id: string) => setConfirmDeleteId(id);
-
   const doDelete = async () => {
     if (!confirmDeleteId) return;
     try { await deleteCalendarEvent(confirmDeleteId); toast('Event deleted', 'success'); load(); }
@@ -70,34 +55,13 @@ export default function CalendarPage() {
     finally { setConfirmDeleteId(null); }
   };
 
-  // Build birthday virtual events for the current displayed month
-  const birthdaysByDate: Record<string, { name: string; age: number }[]> = {};
-  students.forEach((s: any) => {
-    if (!s.dob) return;
-    const mmdd = s.dob.slice(5); // "MM-DD"
-    const dateStr = `${currentMonth.format('YYYY')}-${mmdd}`;
-    // Check the date actually falls in this month
-    const d = dayjs(dateStr);
-    if (!d.isValid() || d.month() !== currentMonth.month()) return;
-    if (!birthdaysByDate[dateStr]) birthdaysByDate[dateStr] = [];
-    birthdaysByDate[dateStr].push({ name: s.name, age: currentMonth.year() - dayjs(s.dob).year() });
-  });
-
   const firstDay = currentMonth.startOf('month').day();
   const daysInMonth = currentMonth.daysInMonth();
   const eventsByDate: Record<string, any[]> = {};
   events.forEach(e => { if (!eventsByDate[e.date]) eventsByDate[e.date] = []; eventsByDate[e.date].push(e); });
   const calDays = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
-
-  // Merge calendar events + birthday virtual entries for the selected date panel
   const selectedEvents = events.filter(e => e.date === selectedDate);
-  const selectedBirthdays = birthdaysByDate[selectedDate] ?? [];
-
-  // All-month list: real events + birthdays merged and sorted by date
-  const allMonthBirthdays = Object.entries(birthdaysByDate).flatMap(([date, bdays]) =>
-    bdays.map(b => ({ id: `bday-${date}-${b.name}`, date, type: 'birthday', title: `${b.name}'s Birthday 🎂`, description: `Turning ${b.age}`, isBirthday: true }))
-  );
-  const allMonthItems = [...events, ...allMonthBirthdays].sort((a, b) => a.date.localeCompare(b.date));
+  const allMonthItems = [...events].sort((a, b) => a.date.localeCompare(b.date));
 
   return (
     <div className="p-6">
@@ -140,22 +104,18 @@ export default function CalendarPage() {
               if (!day) return <div key={`e-${idx}`} />;
               const dateStr = currentMonth.date(day).format('YYYY-MM-DD');
               const dayEvents = eventsByDate[dateStr] || [];
-              const dayBirthdays = birthdaysByDate[dateStr] ?? [];
               const isToday = dateStr === dayjs().format('YYYY-MM-DD');
               const isSelected = dateStr === selectedDate;
               const isSunday = currentMonth.date(day).day() === 0;
-              const allIcons = [
-                ...dayEvents.slice(0, 2).map(e => ({ type: e.type })),
-                ...(dayBirthdays.length > 0 ? [{ type: 'birthday' }] : []),
-              ].slice(0, 3);
+              const icons = dayEvents.slice(0, 3).map(e => ({ type: e.type }));
               return (
                 <button key={dateStr} onClick={() => setSelectedDate(dateStr)}
                   className={`aspect-square relative rounded-lg text-sm font-medium transition-all border ${isSelected || isToday ? 'text-white border-transparent shadow-md' : isSunday ? 'border-amber-100 bg-amber-50/60 text-amber-400' : 'border-gray-100 bg-gray-50/50 hover:border-[#6C63FF]/30 hover:bg-[#6C63FF]/5 text-gray-700'}`}
                   style={isSelected || isToday ? { background: 'linear-gradient(135deg, #8B5CF6 0%, #6C63FF 50%, #4F46E5 100%)' } : undefined}>
                   <span className="absolute inset-0 flex items-center justify-center font-semibold">{day}</span>
-                  {allIcons.length > 0 && (
+                  {icons.length > 0 && (
                     <div className="absolute bottom-1 right-1 flex gap-0.5">
-                      {allIcons.map((e, i) => {
+                      {icons.map((e, i) => {
                         const Icon = EVENT_ICONS[e.type] ?? CalendarDays;
                         return <Icon key={i} className="w-2.5 h-2.5" style={{ color: (isSelected || isToday) ? 'rgba(255,255,255,0.85)' : EVENT_COLORS[e.type] }} />;
                       })}
@@ -166,7 +126,7 @@ export default function CalendarPage() {
             })}
           </div>
           <div className="flex gap-4 mt-4 justify-center flex-wrap">
-            {[...EVENT_TYPES, 'birthday'].map(t => {
+            {EVENT_TYPES.map(t => {
               const Icon = EVENT_ICONS[t];
               return (
                 <div key={t} className="flex items-center gap-1.5">
@@ -180,31 +140,17 @@ export default function CalendarPage() {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 overflow-y-auto">
           <h3 className="font-bold text-gray-800 mb-1">{dayjs(selectedDate).format('ddd, D MMM')}</h3>
-          <p className="text-xs text-gray-400 mb-4">
-            {selectedEvents.length + selectedBirthdays.length === 0 ? 'No events' : `${selectedEvents.length + selectedBirthdays.length} event(s)`}
-          </p>
+          <p className="text-xs text-gray-400 mb-4">{selectedEvents.length === 0 ? 'No events' : `${selectedEvents.length} event(s)`}</p>
           <div className="space-y-3">
             {selectedEvents.map(event => (
-              <div key={event.id} className="border-l-4 pl-3 py-1" style={{ borderColor: EVENT_COLORS[event.type] }}>
+              <div key={event.id} className="border-l-4 pl-3 py-1" style={{ borderColor: EVENT_COLORS[event.type] ?? '#9CA3AF' }}>
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-semibold text-gray-800 text-sm">{event.title}</p>
                     {event.description && <p className="text-xs text-gray-400 mt-0.5">{event.description}</p>}
-                    <span className="text-xs capitalize px-2 py-0.5 rounded-full font-medium mt-1 inline-block" style={{ backgroundColor: EVENT_COLORS[event.type] + '20', color: EVENT_COLORS[event.type] }}>{event.type}</span>
+                    <span className="text-xs capitalize px-2 py-0.5 rounded-full font-medium mt-1 inline-block" style={{ backgroundColor: (EVENT_COLORS[event.type] ?? '#9CA3AF') + '20', color: EVENT_COLORS[event.type] ?? '#6B7280' }}>{event.type}</span>
                   </div>
-                  <button onClick={() => handleDelete(event.id)} className="p-1 hover:bg-red-50 rounded"><Trash2 className="w-3.5 h-3.5 text-gray-300 hover:text-red-500" /></button>
-                </div>
-              </div>
-            ))}
-            {selectedBirthdays.map((b, i) => (
-              <div key={i} className="border-l-4 pl-3 py-1" style={{ borderColor: EVENT_COLORS.birthday }}>
-                <div className="flex items-start gap-2">
-                  <Cake className="w-4 h-4 mt-0.5 shrink-0" style={{ color: EVENT_COLORS.birthday }} />
-                  <div>
-                    <p className="font-semibold text-gray-800 text-sm">{b.name}'s Birthday 🎂</p>
-                    <p className="text-xs text-gray-400 mt-0.5">Turning {b.age}</p>
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium mt-1 inline-block" style={{ backgroundColor: EVENT_COLORS.birthday + '20', color: EVENT_COLORS.birthday }}>Birthday</span>
-                  </div>
+                  <button onClick={() => setConfirmDeleteId(event.id)} className="p-1 hover:bg-red-50 rounded"><Trash2 className="w-3.5 h-3.5 text-gray-300 hover:text-red-500" /></button>
                 </div>
               </div>
             ))}

@@ -14,7 +14,10 @@ import { getAttendanceForDate } from '@/services/attendance';
 import { getAllStudentFeeStatus, getCurrentMonthFeeId } from '@/services/fees';
 import { getLeaveRequests, getUnreadLeaveCount } from '@/services/leaves';
 import { getCalendarEvents } from '@/services/calendar';
+import { getPushTokens, sendPushNotifications } from '@/services/messages';
 import { LEAVE_STATUS, FEE_STATUS } from '@/constants';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 export default function DashboardPage() {
   const { userProfile } = useAuth();
@@ -54,6 +57,40 @@ export default function DashboardPage() {
       const birthdays = students.filter((s: any) => s.dob && s.dob.slice(5) === todayMMDD);
 
       setBirthdayStudents(birthdays);
+
+      // Send birthday push notifications — per-student guard so multiple same-day birthdays all fire
+      if (birthdays.length > 0) {
+        try {
+          // per-student birthday notification guard
+          // Check which students haven't been notified today yet
+          const sentChecks = await Promise.all(
+            birthdays.map((s: any) => getDoc(doc(db, 'config', `birthdayNotif_${today}_${s.id}`)))
+          );
+          const newBirthdays = birthdays.filter((_: any, i: number) => !sentChecks[i].exists());
+          if (newBirthdays.length > 0) {
+            // Mark them all as notified
+            await Promise.all(newBirthdays.map((s: any) =>
+              setDoc(doc(db, 'config', `birthdayNotif_${today}_${s.id}`), { date: today, studentId: s.id })
+            ));
+            const newIds = newBirthdays.map((s: any) => s.id);
+            // Notify birthday students
+            const bdayTokens = await getPushTokens(newIds);
+            if (bdayTokens.length) await sendPushNotifications(bdayTokens, '🎂 Happy Birthday! 🎉', 'Genix Connect wishes you a very Happy Birthday! 🎊🥳🎈 Have a wonderful day!');
+            // Notify other students — simple consistent format
+            const otherTokens = await getPushTokens(students.filter((s: any) => !newIds.includes(s.id)).map((s: any) => s.id));
+            if (otherTokens.length) {
+              const body = newBirthdays.map((s: any) => `Today is ${s.name}'s birthday! 🎂`).join(' ');
+              await sendPushNotifications(otherTokens, '🎂 Birthday Today!', body);
+            }
+            // Notify teacher — same format
+            const teacherTokens = await getPushTokens(['teacher']);
+            if (teacherTokens.length) {
+              const body = newBirthdays.map((s: any) => `Today is ${s.name}'s birthday! 🎂`).join(' ');
+              await sendPushNotifications(teacherTokens, `🎂 ${newBirthdays.length === 1 ? '1 Birthday' : `${newBirthdays.length} Birthdays`} Today!`, body);
+            }
+          }
+        } catch (_) {}
+      }
       setUnreadLeaves(unread);
       setSummary(prev => ({ ...prev, totalStudents: students.length, presentToday: presentCount, pendingLeaves: leaves.length, attendanceMarked: Object.keys(todayAtt).length > 0 }));
       setUpcomingEvents(calEvents.filter((e: any) => e.date >= today).slice(0, 3));
@@ -175,8 +212,8 @@ export default function DashboardPage() {
           <Gift className="w-5 h-5 text-amber-500 shrink-0" />
           <p className="font-semibold text-amber-700">
             {birthdayStudents.length === 1
-              ? `🎂 Today is ${birthdayStudents[0].name}'s Birthday! ${birthdayStudents[0].dob ? `— Turning ${dayjs().year() - dayjs(birthdayStudents[0].dob).year()} 🎉🥳` : '🎉🥳'}`
-              : `🎂 ${birthdayStudents.map((s: any) => { const age = s.dob ? dayjs().year() - dayjs(s.dob).year() : null; return age ? `${s.name} (turning ${age})` : s.name; }).join(', ')} — Birthdays Today! 🎉🥳`}
+              ? `🎂 Today is ${birthdayStudents[0].name}'s Birthday! 🎉🥳`
+              : `🎂 ${birthdayStudents.map((s: any) => `Today is ${s.name}'s Birthday! 🎂`).join(' ')} 🎉🥳`}
           </p>
         </div>
       )}

@@ -75,7 +75,7 @@ export default function StudentHomePage() {
           <Gift className="w-5 h-5 text-amber-500 shrink-0" />
           <div>
             <p className="font-semibold text-amber-700 text-sm">Birthday Today!</p>
-            {classmateBirthdays.map((s: any) => <p key={s.id} className="text-amber-600 text-xs">Today is {s.name}'s birthday! Wish {s.gender === 'female' ? 'her' : 'him'} 🎉</p>)}
+            {classmateBirthdays.map((s: any) => <p key={s.id} className="text-amber-600 text-xs">Today is {s.name}'s birthday! 🎂</p>)}
           </div>
         </div>
       )}

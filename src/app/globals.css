@@ -5,6 +5,13 @@
 /* Hide reCAPTCHA badge — disclosed in Privacy Policy */
 .grecaptcha-badge { visibility: hidden !important; }
 
+/* Remove tap delay and highlight on mobile browsers */
+a, button {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

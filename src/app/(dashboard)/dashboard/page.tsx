@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import dayjs from 'dayjs';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [todayHolidayName, setTodayHolidayName] = useState<string | null>(null);
 
   const EVENT_COLORS: Record<string, string> = { class: '#6C63FF', holiday: '#F44336', test: '#FFC107', special: '#2196F3' };
 
@@ -57,6 +59,11 @@ export default function DashboardPage() {
       const birthdays = students.filter((s: any) => s.dob && s.dob.slice(5) === todayMMDD);
 
       setBirthdayStudents(birthdays);
+
+      // Check if today is Sunday or a calendar holiday
+      const isSunday = dayjs().day() === 0;
+      const todayHoliday = calEvents.find((e: any) => e.type === 'holiday' && e.date === today);
+      setTodayHolidayName(isSunday ? 'Sunday' : todayHoliday ? todayHoliday.title : null);
 
       // Send birthday push notifications — per-student guard so multiple same-day birthdays all fire
       if (birthdays.length > 0) {
@@ -157,10 +164,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const signal = { cancelled: false };
     load(signal);
-    // Reload when user navigates back to this tab (visibilitychange)
-    const onVisible = () => { if (document.visibilityState === 'visible') load(signal); };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => { signal.cancelled = true; document.removeEventListener('visibilitychange', onVisible); };
+    return () => { signal.cancelled = true; };
   }, [load]);
 
   const handleRefresh = () => { setRefreshing(true); load(); };
@@ -176,10 +180,10 @@ export default function DashboardPage() {
   const pieData = [{ name: 'Paid', value: feeData.paid }, { name: 'Pending', value: feeData.pending }];
 
   const STAT_CARDS = [
-    { label: 'Total Students', value: summary.totalStudents, icon: Users, color: '#6C63FF', sub: 'Enrolled students', href: '/students' },
-    { label: 'Present Today', value: summary.presentToday, icon: CheckCircle, color: '#4CAF50', sub: `Out of ${summary.totalStudents} students`, badge: !summary.attendanceMarked ? 'Not Marked' : null, href: '/attendance' },
-    { label: 'Pending Fees', value: summary.pendingFees, icon: Wallet, color: '#FFC107', sub: 'This month', href: '/fees' },
-    { label: 'Leave Requests', value: summary.pendingLeaves, icon: FileText, color: '#2196F3', sub: 'Pending approval', badge: unreadLeaves > 0 ? `${unreadLeaves} unread` : null, href: '/leave-requests' },
+    { label: 'Total Students', value: summary.totalStudents, icon: Users, color: '#6C63FF', sub: 'Enrolled students', href: '/students', holiday: null },
+    { label: 'Present Today', value: summary.presentToday, icon: CheckCircle, color: '#4CAF50', sub: `Out of ${summary.totalStudents} students`, badge: !todayHolidayName && !summary.attendanceMarked ? 'Not Marked' : null, href: '/attendance', holiday: todayHolidayName },
+    { label: 'Pending Fees', value: summary.pendingFees, icon: Wallet, color: '#FFC107', sub: 'This month', href: '/fees', holiday: null },
+    { label: 'Leave Requests', value: summary.pendingLeaves, icon: FileText, color: '#2196F3', sub: 'Pending approval', badge: unreadLeaves > 0 ? `${unreadLeaves} unread` : null, href: '/leave-requests', holiday: null },
   ];
 
   return (
@@ -220,19 +224,28 @@ export default function DashboardPage() {
 
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {STAT_CARDS.map(({ label, value, icon: Icon, color, sub, badge, href }) => (
-          <button key={label} onClick={() => router.push(href)}
-            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#6C63FF]/30 transition-all text-left">
+        {STAT_CARDS.map(({ label, value, icon: Icon, color, sub, badge, href, holiday }) => (
+          <Link key={label} href={href}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#6C63FF]/30 transition-all text-left block">
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + '18' }}>
                 <Icon className="w-5 h-5" style={{ color }} />
               </div>
               {badge && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: color + '18', color }}>{badge}</span>}
             </div>
-            <p className="text-3xl font-bold text-gray-900">{loading ? '0' : value}</p>
-            <p className="text-sm font-medium text-gray-600 mt-0.5">{label}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
-          </button>
+            {holiday ? (
+              <>
+                <p className="text-xl font-bold mt-1" style={{ color }}>{holiday}</p>
+                <p className="text-sm font-medium mt-0.5" style={{ color }}>No Classes</p>
+              </>
+            ) : (
+              <>
+                <p className="text-3xl font-bold text-gray-900">{loading ? '0' : value}</p>
+                <p className="text-sm font-medium text-gray-600 mt-0.5">{label}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
+              </>
+            )}
+          </Link>
         ))}
       </div>
 

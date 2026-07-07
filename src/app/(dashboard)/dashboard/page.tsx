@@ -225,8 +225,10 @@ export default function DashboardPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {STAT_CARDS.map(({ label, value, icon: Icon, color, sub, badge, href, holiday }) => (
-          <Link key={label} href={href}
-            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#6C63FF]/30 transition-all text-left block">
+          <div key={label}
+            onPointerDown={() => router.push(href)}
+            className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 hover:shadow-md hover:border-[#6C63FF]/30 transition-all text-left cursor-pointer select-none"
+            style={{ WebkitTapHighlightColor: 'transparent' } as React.CSSProperties}>
             <div className="flex items-start justify-between mb-3">
               <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + '18' }}>
                 <Icon className="w-5 h-5" style={{ color }} />
@@ -245,7 +247,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-400 mt-0.5">{sub}</p>
               </>
             )}
-          </Link>
+          </div>
         ))}
       </div>
 

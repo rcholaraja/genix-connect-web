@@ -11,7 +11,7 @@ import {
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
-const TEACHER_PHONE = '+917418761703';
+const TEACHER_PHONE = '+917795561343';
 const TEACHER_PHONE_DEV = '+919876543211'; // dev testing only — remove before production
 
 type UserRole = 'teacher' | 'student' | 'not_registered' | null;
